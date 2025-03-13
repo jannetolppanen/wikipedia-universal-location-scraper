@@ -1,0 +1,35 @@
+[
+    {
+        "name": "Kurjenrahkan kansallispuisto",
+        "wikipedia_link": "https://fi.wikipedia.org/wiki/Kurjenrahkan_kansallispuisto",
+        "coordinates": {
+            "lat": 60.733333333333334,
+            "lon": 22.416666666666668,
+            "format": "decimal",
+            "original": "wgCoordinates: 60.733333333333334, 22.416666666666668",
+            "method": "method_4"
+        }
+    },
+    {
+        "name": "Etelä-Konneveden kansallispuisto",
+        "wikipedia_link": "https://fi.wikipedia.org/wiki/Etel%C3%A4-Konneveden_kansallispuisto",
+        "coordinates": {
+            "lat": 62.55,
+            "lon": 26.633333333333333,
+            "format": "decimal",
+            "original": "wgCoordinates: 62.55, 26.633333333333333",
+            "method": "method_4"
+        }
+    },
+    {
+        "name": "Helvetinjärven kansallispuisto",
+        "wikipedia_link": "https://fi.wikipedia.org/wiki/Helvetinj%C3%A4rven_kansallispuisto",
+        "coordinates": {
+            "lat": 62.03333333333333,
+            "lon": 23.85,
+            "format": "decimal",
+            "original": "wgCoordinates: 62.03333333333333, 23.85",
+            "method": "method_4"
+        }
+    }
+]

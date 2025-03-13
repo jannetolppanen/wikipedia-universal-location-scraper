@@ -1,0 +1,57 @@
+[
+    {
+        "name": "Kurjenrahkan kansallispuisto",
+        "wikipedia_link": "https://fi.wikipedia.org/wiki/Kurjenrahkan_kansallispuisto",
+        "coordinates": {
+            "lat": 60.733333333333334,
+            "lon": 22.416666666666668,
+            "format": "decimal",
+            "original": "wgCoordinates: 60.733333333333334, 22.416666666666668",
+            "method": "method_4"
+        }
+    },
+    {
+        "name": "Hossan kansallispuisto",
+        "wikipedia_link": "https://fi.wikipedia.org/wiki/Hossan_kansallispuisto",
+        "coordinates": {
+            "lat": 65.48972222222223,
+            "lon": 29.32361111111111,
+            "format": "DMS",
+            "original": "65°29′23″N, 029°19′25″E",
+            "method": "method_1"
+        }
+    },
+    {
+        "name": "Helvetinjärven kansallispuisto",
+        "wikipedia_link": "https://fi.wikipedia.org/wiki/Helvetinj%C3%A4rven_kansallispuisto",
+        "coordinates": {
+            "lat": 62.03333333333333,
+            "lon": 23.85,
+            "format": "decimal",
+            "original": "wgCoordinates: 62.03333333333333, 23.85",
+            "method": "method_4"
+        }
+    },
+    {
+        "name": "Oulangan kansallispuisto",
+        "wikipedia_link": "https://fi.wikipedia.org/wiki/Oulangan_kansallispuisto",
+        "coordinates": {
+            "lat": 66.36666666666666,
+            "lon": 29.333333333333332,
+            "format": "decimal",
+            "original": "wgCoordinates: 66.36666666666666, 29.333333333333332",
+            "method": "method_4"
+        }
+    },
+    {
+        "name": "https://fi.wikipedia.org/wiki/Kolin_kansallispuisto",
+        "wikipedia_link": "https://fi.wikipedia.org/wiki/Kolin_kansallispuisto",
+        "coordinates": {
+            "lat": 63.0575,
+            "lon": 29.88722222,
+            "format": "decimal",
+            "original": "map element: data-lat=63.0575, data-lon=29.88722222",
+            "method": "method_6"
+        }
+    }
+]
