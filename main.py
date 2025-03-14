@@ -220,11 +220,11 @@ def extract_coordinates_method_3(soup):
     if not infobox:
         return None
     
-    # Find the row with "Koordinaatit" label
+    # Find the row with "Koordinaatit" label (Finnish) or "Coordinates" (English)
     coord_row = None
     for row in infobox.find_all('tr'):
         th = row.find('th')
-        if th and 'Koordinaatit' in th.get_text():
+        if th and ('Koordinaatit' in th.get_text() or 'Coordinates' in th.get_text()):
             coord_row = row
             break
     
@@ -408,22 +408,25 @@ def extract_address(soup):
         soup (BeautifulSoup): Parsed HTML
         
     Returns:
-        str: Address or None if not found
+        dict: Address information or None if not found
     """
     # Find the infobox table
     infobox = soup.find('table', class_='infobox')
     if not infobox:
         return None
     
-    # Look for "Sijainti" (Location) row
+    # Look for "Sijainti" (Location in Finnish) or "Location" (English) row
     address = None
+    raw_address = None
     
-    # Method 1: Standard format - look for th/td with "Sijainti" text
+    # Method 1: Standard format - look for th/td with "Sijainti" or "Location" text
     for row in infobox.find_all('tr'):
-        header = row.find(['th', 'td'], string=lambda text: text and 'Sijainti' in text)
+        header = row.find(['th', 'td'], string=lambda text: text and ('Sijainti' in text or 'Location' in text))
         if header:
             td = row.find('td', recursive=False) if header.name == 'th' else header.find_next('td')
             if td:
+                # Store the raw HTML content for possible citation cleanup
+                raw_address = td
                 address = td.get_text().strip()
                 # Clean up the address
                 address = re.sub(r'\s+', ' ', address)
@@ -434,16 +437,44 @@ def extract_address(soup):
     if not address:
         for row in infobox.find_all('tr'):
             td = row.find('td', style=lambda style: style and 'font-weight:bold' in style)
-            if td and 'Sijainti' in td.get_text():
+            if td and ('Sijainti' in td.get_text() or 'Location' in td.get_text()):
                 value_td = td.find_next('td')
                 if value_td:
+                    # Store the raw HTML content for possible citation cleanup
+                    raw_address = value_td
                     address = value_td.get_text().strip()
                     address = re.sub(r'\s+', ' ', address)
                     print(f"  - Found address using method 2: {address}")
                     break
     
-    # If we found an address, check if it's a detailed one
+    # If we found an address, check if it's a detailed one and clean up citation markers
     if address:
+        # Clean up citation markers like [1], [2], etc.
+        # First try to use the raw HTML to get text without citation superscripts
+        if raw_address:
+            # Remove all sup tags with class="reference" which are typically citation markers
+            citation_refs = raw_address.find_all('sup', class_='reference')
+            for citation in citation_refs:
+                citation.decompose()
+            
+            # Get the cleaned text
+            cleaned_address = raw_address.get_text().strip()
+            cleaned_address = re.sub(r'\s+', ' ', cleaned_address)
+            
+            # If we have something after cleanup, use it
+            if cleaned_address:
+                address = cleaned_address
+                print(f"  - Cleaned address (removed HTML citations): {address}")
+        
+        # Secondary cleanup using regex for citations that might still be in the text
+        # This handles cases where we couldn't clean with HTML parsing or as a fallback
+        cleaned_address = re.sub(r'\[\d+\]', '', address)  # Remove [n] citations
+        cleaned_address = re.sub(r'\s+', ' ', cleaned_address).strip()  # Clean up whitespace
+        
+        if cleaned_address != address:
+            address = cleaned_address
+            print(f"  - Cleaned address (removed text citations): {address}")
+        
         # Check if it has both a street number and a city (comma separated)
         has_street_number = bool(re.search(r'\d+', address))
         has_comma = ',' in address
@@ -456,6 +487,127 @@ def extract_address(soup):
         }
     
     return None
+
+
+def geocode_address(address):
+    """
+    Geocode an address to get coordinates using OpenStreetMap Nominatim API
+    
+    Args:
+        address (str): Address to geocode
+        
+    Returns:
+        dict: Coordinate dictionary or None if geocoding failed
+    """
+    # Add delay before geocoding to be respectful to the API
+    time.sleep(random.uniform(1.5, 3))
+    
+    # Nominatim API URL (base)
+    base_url = "https://nominatim.openstreetmap.org/search"
+    
+    # Parameters as a dictionary - let requests handle the URL encoding
+    params = {
+        'q': address,  # Don't manually encode - let requests do it
+        'format': 'json',
+        'limit': 1,
+        'addressdetails': 1  # Get detailed address components
+    }
+    
+    # Simplify the User-Agent to a very basic format
+    headers = {
+        'User-Agent': 'WikiCoordinateExtractor/1.0',
+    }
+    
+    try:
+        print(f"  - Sending geocoding request for: {address}")
+        response = requests.get(base_url, params=params, headers=headers)
+        
+        # Log the actual URL that was requested
+        print(f"  - Request URL: {response.url}")
+        
+        # Check if we got a 403 error
+        if response.status_code == 403:
+            print(f"  - Received 403 Forbidden error, trying alternative geocoding approach...")
+            
+            # Try an alternative approach - using Google Maps API URL format (still going to Nominatim)
+            # sometimes services block certain URL patterns or user agents
+            alt_params = {
+                'address': address,
+                'format': 'json'
+            }
+            
+            alt_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            }
+            
+            response = requests.get("https://nominatim.openstreetmap.org/search", params=alt_params, headers=alt_headers)
+            print(f"  - Alternative request URL: {response.url}")
+            
+        response.raise_for_status()
+        results = response.json()
+        
+        # Debug: Print the raw response
+        print(f"  - Response received, found {len(results)} results")
+        
+        if results and len(results) > 0:
+            result = results[0]
+            lat = float(result['lat'])
+            lon = float(result['lon'])
+            
+            return {
+                "lat": lat,
+                "lon": lon,
+                "format": "decimal",
+                "original": address,
+                "method": "geocoding",
+                "geocode_source": "nominatim"
+            }
+        else:
+            print(f"  - No results found for address: {address}")
+            
+        return None
+    except (requests.RequestException, json.JSONDecodeError, KeyError) as e:
+        print(f"Error geocoding address: {e}")
+        
+        # Try an alternative geocoding service as backup
+        try:
+            print(f"  - Trying alternative geocoding service (MapQuest Nominatim)...")
+            
+            # MapQuest's Nominatim instance
+            mapquest_url = "https://open.mapquestapi.com/nominatim/v1/search.php"
+            mapquest_params = {
+                'q': address,
+                'format': 'json',
+                'limit': 1
+            }
+            
+            mapquest_headers = {
+                'User-Agent': 'Mozilla/5.0',
+            }
+            
+            mapquest_response = requests.get(mapquest_url, params=mapquest_params, headers=mapquest_headers)
+            mapquest_response.raise_for_status()
+            
+            mapquest_results = mapquest_response.json()
+            
+            if mapquest_results and len(mapquest_results) > 0:
+                result = mapquest_results[0]
+                lat = float(result['lat'])
+                lon = float(result['lon'])
+                
+                return {
+                    "lat": lat,
+                    "lon": lon,
+                    "format": "decimal",
+                    "original": address,
+                    "method": "geocoding",
+                    "geocode_source": "mapquest_nominatim"
+                }
+            
+        except Exception as backup_error:
+            print(f"  - Alternative geocoding also failed: {backup_error}")
+        
+        return None
 
 
 def extract_all_coordinates(soup):
@@ -477,7 +629,9 @@ def extract_all_coordinates(soup):
         "method_6": 0,
         "no_coords": 0,
         "address_found": 0,
-        "detailed_address": 0
+        "detailed_address": 0,
+        "geocoded_success": 0,
+        "geocoded_failure": 0
     }
     
     # Try all methods in sequence
@@ -520,7 +674,7 @@ def process_article(article, verbose=True):
     
     if not soup:
         print(f"  - Failed to fetch page for {article['name']}")
-        return article
+        return article, {}
     
     # Extract coordinates
     coords, method_stats = extract_all_coordinates(soup)
@@ -543,6 +697,22 @@ def process_article(article, verbose=True):
                 method_stats["detailed_address"] += 1
                 if verbose:
                     print(f"  - Found detailed address as fallback: {address_info['text']}")
+                
+                # Try to geocode the detailed address to get coordinates
+                if verbose:
+                    print(f"  - Attempting to geocode the detailed address...")
+                
+                geocoded_coords = geocode_address(address_info['text'])
+                if geocoded_coords:
+                    method_stats["geocoded_success"] += 1
+                    if verbose:
+                        print(f"  - Successfully geocoded address to coordinates: {geocoded_coords['lat']}, {geocoded_coords['lon']}")
+                    
+                    article['coordinates'] = geocoded_coords
+                else:
+                    method_stats["geocoded_failure"] += 1
+                    if verbose:
+                        print(f"  - Failed to geocode the address")
             else:
                 if verbose:
                     print(f"  - Found address as fallback (not detailed): {address_info['text']}")
@@ -567,14 +737,15 @@ def process_articles(input_file, output_file, verbose=True):
         print("No articles loaded. Exiting.")
         return
     
-    print(f"Processing {len(articles)} articles...")
+    total_articles = len(articles)
+    print(f"Processing {total_articles} articles...")
     
     # Count how many articles already have coordinates
     already_with_coords = sum(1 for article in articles if article.get('coordinates'))
     already_with_address = sum(1 for article in articles if article.get('address'))
     
-    print(f"Already have coordinates for {already_with_coords}/{len(articles)} articles.")
-    print(f"Already have addresses for {already_with_address}/{len(articles)} articles.")
+    print(f"Already have coordinates for {already_with_coords}/{total_articles} articles.")
+    print(f"Already have addresses for {already_with_address}/{total_articles} articles.")
     
     # Initialize stats
     total_stats = {
@@ -586,19 +757,47 @@ def process_articles(input_file, output_file, verbose=True):
         "method_6": 0,
         "no_coords": 0,
         "address_found": 0,
-        "detailed_address": 0
+        "detailed_address": 0,
+        "geocoded_success": 0,
+        "geocoded_failure": 0
     }
     
     processed_count = 0
     skipped_count = 0
+    start_time = time.time()
+    
+    # Count articles that need processing (don't have coordinates)
+    articles_to_process = total_articles - already_with_coords
     
     for i, article in enumerate(articles):
+        # Display progress counter
+        percent_complete = (i / total_articles) * 100
+        elapsed_time = time.time() - start_time
+        
+        if i > 0:
+            # Calculate estimated time remaining
+            time_per_article = elapsed_time / i
+            remaining_articles = total_articles - i
+            eta_seconds = time_per_article * remaining_articles
+            
+            # Convert to hours, minutes, seconds
+            eta_hours = int(eta_seconds // 3600)
+            eta_minutes = int((eta_seconds % 3600) // 60)
+            eta_seconds = int(eta_seconds % 60)
+            
+            time_remaining = f"{eta_hours}h {eta_minutes}m {eta_seconds}s"
+            
+            print(f"\r[{i}/{total_articles}] {percent_complete:.1f}% complete | Processed: {processed_count} | Skipped: {skipped_count} | ETA: {time_remaining}", end="")
+        
         # Skip articles that already have coordinates
         if article.get('coordinates'):
             skipped_count += 1
             continue
             
         processed_count += 1
+        
+        if verbose:
+            print("")  # New line for verbose output if progress counter is shown
         
         updated_article, method_stats = process_article(article, verbose)
         articles[i] = updated_article
@@ -609,8 +808,14 @@ def process_articles(input_file, output_file, verbose=True):
         
         # Save progress periodically
         if (i + 1) % 10 == 0:
-            print(f"  - Saving progress after {i + 1} articles...")
+            if verbose:
+                print(f"  - Saving progress after {i + 1} articles...")
+            else:
+                print(f"\n  - Saving progress after {i + 1} articles...")
             save_data(articles, output_file)
+    
+    # Clear progress line and go to new line
+    print("\n")
     
     # Final save of all articles
     save_data(articles, output_file)
@@ -634,12 +839,19 @@ def process_articles(input_file, output_file, verbose=True):
         print(f"- Method 3 (infobox table): {total_stats['method_3']} successes")
         print(f"- Method 4 (wgCoordinates in script): {total_stats['method_4']} successes")
         print(f"- Method 5 (geo metadata): {total_stats['method_5']} successes")
-        print(f"- Method 5 (geo metadata): {total_stats['method_6']} successes")
+        print(f"- Method 6 (map elements): {total_stats['method_6']} successes")
+        print(f"- Geocoded from address: {total_stats['geocoded_success']} successes")
+        print(f"- Geocoding failures: {total_stats['geocoded_failure']} articles")
         print(f"- No coordinates found: {total_stats['no_coords']} articles")
         
         print("\nAddress Extraction Statistics (for processed articles):")
         print(f"- Articles with address found: {total_stats['address_found']} articles")
         print(f"- Articles with detailed address found: {total_stats['detailed_address']} articles")
+        
+        # Calculate geocoding success rate
+        if total_stats['detailed_address'] > 0:
+            geocoding_success_rate = (total_stats['geocoded_success'] / total_stats['detailed_address']) * 100
+            print(f"- Geocoding success rate: {geocoding_success_rate:.1f}%")
 
 
 def test_single_url(url, verbose=True):
